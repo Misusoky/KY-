@@ -326,6 +326,7 @@
     }
 
     .editor {
+      height: 100dvh;
       min-height: 100dvh;
       display: flex;
       flex-direction: column;
@@ -446,16 +447,45 @@
     .lyric-actions {
       display: flex;
       justify-content: center;
+      flex-wrap: wrap;
       gap: 6px;
       padding: 4px 16px 0;
     }
 
+    .font-stepper {
+      height: 42px;
+      display: inline-grid;
+      grid-template-columns: 38px 42px 38px;
+      align-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.045);
+      overflow: hidden;
+    }
+
+    .font-stepper .icon-button {
+      width: 38px;
+      height: 40px;
+      border-radius: 0;
+    }
+
+    .font-size-value {
+      min-width: 0;
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.78rem;
+      font-weight: 750;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
     .lyrics-scroll {
-      flex: 1 1 auto;
+      flex: 1 1 0;
       overflow-y: auto;
       padding: 28px 18px 34px;
       scroll-padding: 36vh 0;
-      min-height: 340px;
+      min-height: 0;
+      mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
     }
 
     .lyrics-scroll::-webkit-scrollbar {
@@ -534,7 +564,7 @@
       background: transparent;
       color: rgba(255, 255, 255, 0.34);
       text-align: center;
-      font-size: 1.28rem;
+      font-size: var(--lyric-font-size, 20px);
       line-height: 1.45;
       font-weight: 700;
       caret-color: white;
@@ -551,7 +581,7 @@
 
     .lyric-line.active textarea {
       color: #fff;
-      font-size: 1.55rem;
+      font-size: var(--active-lyric-font-size, 25px);
       text-shadow: 0 10px 24px rgba(255, 255, 255, 0.11);
     }
 
@@ -632,6 +662,11 @@
       margin: 0 auto;
 	      color: rgba(255, 255, 255, 0.72);
 	    }
+
+    .transport-static {
+      pointer-events: none;
+      cursor: default;
+    }
 
 	    .play-button {
 	      width: 64px;
@@ -756,11 +791,11 @@
       }
 
       .lyric-line textarea {
-        font-size: 1.15rem;
+        font-size: calc(var(--lyric-font-size, 20px) * 0.92);
       }
 
 	      .lyric-line.active textarea {
-	        font-size: 1.38rem;
+	        font-size: calc(var(--active-lyric-font-size, 25px) * 0.92);
 	      }
 
 	      .lyric-line {
@@ -785,6 +820,11 @@
 	    const STORE_NAME = "songs";
 	    const FALLBACK_KEY = "local-lyric-notebook-fallback";
 	    const STARTER_LINES = ["把刚出现的旋律写下来", "让副歌先亮一下", "下一句留给深夜"];
+	    const LYRIC_FONT_MIN = 16;
+	    const LYRIC_FONT_MAX = 28;
+	    const LYRIC_FONT_STEP = 1;
+	    const LYRIC_FONT_DEFAULT = 20;
+	    const ACTIVE_LYRIC_FONT_RATIO = 1.22;
 
     const icons = {
       add: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -798,6 +838,8 @@
       search: '<svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>',
       trash: '<svg class="icon" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 15h10l1-15"/><path d="M9 7V4h6v3"/></svg>',
       upload: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>',
+      fontSmaller: '<svg class="icon" viewBox="0 0 24 24"><path d="M5 18 10 6l5 12"/><path d="M7 14h6"/><path d="M17 17h5"/></svg>',
+      fontLarger: '<svg class="icon" viewBox="0 0 24 24"><path d="M4 18 9 6l5 12"/><path d="M6 14h6"/><path d="M18 14v6M15 17h6"/></svg>',
       up: '<svg class="icon" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg>',
       down: '<svg class="icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
       loop: '<svg class="icon" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a5 5 0 0 1 5-5h13"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a5 5 0 0 1-5 5H3"/></svg>',
@@ -867,6 +909,25 @@
       return "song-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
     }
 
+    function clampLyricFontSize(value) {
+      const size = Number(value);
+      if (!Number.isFinite(size)) return LYRIC_FONT_DEFAULT;
+      return Math.min(LYRIC_FONT_MAX, Math.max(LYRIC_FONT_MIN, Math.round(size)));
+    }
+
+    function getLyricFontSize(song) {
+      return clampLyricFontSize(song?.lyricFontSize);
+    }
+
+    function getActiveLyricFontSize(size) {
+      return Number((clampLyricFontSize(size) * ACTIVE_LYRIC_FONT_RATIO).toFixed(1));
+    }
+
+    function lyricFontStyle(song) {
+      const size = getLyricFontSize(song);
+      return `--lyric-font-size:${size}px; --active-lyric-font-size:${getActiveLyricFontSize(size)}px;`;
+    }
+
     function makeSong(title = "新的灵感") {
       const now = Date.now();
       return {
@@ -876,6 +937,7 @@
 	        cover: "",
 	        lines: [...STARTER_LINES],
 	        activeIndex: 1,
+	        lyricFontSize: LYRIC_FONT_DEFAULT,
         createdAt: now,
         updatedAt: now
       };
@@ -968,6 +1030,24 @@
 
     function currentSong() {
       return state.songs.find((song) => song.id === state.activeSongId) || state.songs[0];
+    }
+
+    async function switchSong(direction) {
+      if (state.songs.length < 2) return;
+      const current = currentSong();
+      if (current) {
+        clearTimeout(state.saveTimer);
+        state.saveTimer = 0;
+        await saveSong(current, true);
+      }
+      const currentIndex = Math.max(0, state.songs.findIndex((song) => song.id === state.activeSongId));
+      const nextIndex = (currentIndex + direction + state.songs.length) % state.songs.length;
+      const nextSong = state.songs[nextIndex];
+      state.activeSongId = nextSong.id;
+      state.view = "editor";
+      state.focusLine = null;
+      renderEditor();
+      showToast(`已切换到《${nextSong.title || "未命名作品"}》`);
     }
 
     function nonEmptyLines(song) {
@@ -1072,9 +1152,11 @@
       const activeIndex = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
       song.activeIndex = activeIndex;
       const progress = song.lines.length > 1 ? Math.round((activeIndex / (song.lines.length - 1)) * 100) : 42;
+      const lyricFontSize = getLyricFontSize(song);
+      const canSwitchSongs = state.songs.length > 1;
 
 	      app.innerHTML = `
-	        <main class="editor">
+	        <main class="editor" style="${lyricFontStyle(song)}">
 	          <input id="coverInput" class="hidden" type="file" accept="image/*">
 	          <input id="lyricsInput" class="hidden" type="file" accept=".txt,.lrc,.md,text/plain">
 	          <header class="editor-topbar">
@@ -1096,6 +1178,11 @@
 
 	          <div class="lyric-actions" aria-label="歌词行工具">
 	            <button class="icon-button" data-action="import-lyrics" title="导入歌词文件" aria-label="导入歌词文件">${icons.upload}</button>
+	            <div class="font-stepper" aria-label="字号大小">
+	              <button class="icon-button" data-action="font-smaller" title="减小字号" aria-label="减小字号" ${lyricFontSize <= LYRIC_FONT_MIN ? "disabled" : ""}>${icons.fontSmaller}</button>
+	              <span id="fontSizeValue" class="font-size-value" aria-live="polite">${lyricFontSize}</span>
+	              <button class="icon-button" data-action="font-larger" title="增大字号" aria-label="增大字号" ${lyricFontSize >= LYRIC_FONT_MAX ? "disabled" : ""}>${icons.fontLarger}</button>
+	            </div>
 	            <button class="icon-button" data-action="add-line" title="在当前行后添加" aria-label="在当前行后添加">${icons.add}</button>
 	            <button class="icon-button" data-action="move-line-up" title="当前行上移" aria-label="当前行上移">${icons.up}</button>
 	            <button class="icon-button" data-action="move-line-down" title="当前行下移" aria-label="当前行下移">${icons.down}</button>
@@ -1123,12 +1210,12 @@
               <span>${String(song.lines.length).padStart(2, "0")}</span>
             </div>
             <div class="quality">本地灵感 · 高亮歌词预览</div>
-            <div class="transport" aria-hidden="true">
-              <button class="icon-button" tabindex="-1">${icons.loop}</button>
-              <button class="icon-button" tabindex="-1">${icons.prev}</button>
-              <button class="play-button" tabindex="-1">${icons.play}</button>
-	              <button class="icon-button" tabindex="-1">${icons.next}</button>
-	              <button class="icon-button" tabindex="-1">${icons.list}</button>
+            <div class="transport" aria-label="作品切换">
+              <button class="icon-button transport-static" type="button" tabindex="-1" aria-hidden="true">${icons.loop}</button>
+              <button class="icon-button" type="button" data-action="switch-song-prev" title="上一首作品" aria-label="上一首作品" ${canSwitchSongs ? "" : "disabled"}>${icons.prev}</button>
+              <button class="play-button transport-static" type="button" tabindex="-1" aria-hidden="true">${icons.play}</button>
+	              <button class="icon-button" type="button" data-action="switch-song-next" title="下一首作品" aria-label="下一首作品" ${canSwitchSongs ? "" : "disabled"}>${icons.next}</button>
+	              <button class="icon-button" type="button" data-action="back-library" title="返回作品列表" aria-label="返回作品列表">${icons.list}</button>
 	            </div>
 	          </footer>
 
@@ -1179,6 +1266,34 @@
     function fitTextarea(textarea) {
       textarea.style.height = "auto";
       textarea.style.height = `${Math.max(40, textarea.scrollHeight)}px`;
+    }
+
+    function syncLyricFontControls(song) {
+      const size = getLyricFontSize(song);
+      const editor = document.querySelector(".editor");
+      if (editor) {
+        editor.style.setProperty("--lyric-font-size", `${size}px`);
+        editor.style.setProperty("--active-lyric-font-size", `${getActiveLyricFontSize(size)}px`);
+      }
+      const value = document.querySelector("#fontSizeValue");
+      if (value) value.textContent = String(size);
+      const smaller = document.querySelector('[data-action="font-smaller"]');
+      const larger = document.querySelector('[data-action="font-larger"]');
+      if (smaller) smaller.disabled = size <= LYRIC_FONT_MIN;
+      if (larger) larger.disabled = size >= LYRIC_FONT_MAX;
+    }
+
+    function changeLyricFontSize(delta) {
+      const song = currentSong();
+      if (!song) return;
+      const current = getLyricFontSize(song);
+      const next = clampLyricFontSize(current + delta);
+      if (next === current) return;
+      song.lyricFontSize = next;
+      syncLyricFontControls(song);
+      document.querySelectorAll("textarea[data-line-index]").forEach(fitTextarea);
+      scheduleSave(song);
+      showToast(`字号 ${next}`);
     }
 
     function centerLine(index, smooth = true) {
@@ -1507,6 +1622,10 @@
         if (action === "delete-line") deleteActiveLine();
         if (action === "move-line-up") moveActiveLine(-1);
         if (action === "move-line-down") moveActiveLine(1);
+        if (action === "font-smaller") changeLyricFontSize(-LYRIC_FONT_STEP);
+        if (action === "font-larger") changeLyricFontSize(LYRIC_FONT_STEP);
+        if (action === "switch-song-prev") await switchSong(-1);
+        if (action === "switch-song-next") await switchSong(1);
         if (action === "export-png") await exportSong("png");
         if (action === "export-word") await exportSong("word");
         if (action === "export-pdf") await exportSong("pdf");
@@ -1710,7 +1829,7 @@
       const lyricTop = 390;
       const bottomHeight = 390;
       const prepared = prepareCanvasLines(song, width - side * 2);
-      const lyricHeight = prepared.reduce((sum, item) => sum + item.height + 34, 0);
+      const lyricHeight = prepared.reduce((sum, item) => sum + item.height + item.gap, 0);
       const height = Math.max(1680, lyricTop + lyricHeight + bottomHeight);
       const canvas = document.createElement("canvas");
       canvas.width = width;
@@ -1728,9 +1847,11 @@
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       const active = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
+      const scale = getLyricFontSize(song) / LYRIC_FONT_DEFAULT;
       return song.lines.map((line, index) => {
         const isActive = index === active;
-        const fontSize = isActive ? 54 : 42;
+        const fontSize = Math.round((isActive ? 54 : 42) * scale);
+        const lineHeight = Math.round((isActive ? 76 : 64) * scale);
         ctx.font = `${isActive ? 800 : 700} ${fontSize}px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial`;
         const wrapped = wrapText(ctx, String(line || " "), maxWidth);
         return {
@@ -1739,8 +1860,9 @@
           lines: wrapped,
           active: isActive,
           fontSize,
-          lineHeight: isActive ? 76 : 64,
-          height: wrapped.length * (isActive ? 76 : 64)
+          lineHeight,
+          gap: Math.round(34 * scale),
+          height: wrapped.length * lineHeight
         };
       });
     }
@@ -1842,7 +1964,7 @@
           const lineY = blockCenter - item.height / 2 + item.lineHeight / 2 + lineIndex * item.lineHeight;
           ctx.fillText(line || " ", width / 2, lineY);
         });
-        y += item.height + 34;
+        y += item.height + item.gap;
       }
       ctx.restore();
     }
