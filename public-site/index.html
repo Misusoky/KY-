@@ -1,0 +1,1717 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>歌词记事本</title>
+  <meta name="theme-color" content="#111217">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="歌词记事本">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c10;
+      --bg-soft: #14151a;
+      --panel: #191a20;
+      --panel-strong: #202126;
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #f4f4f5;
+      --muted: rgba(255, 255, 255, 0.52);
+      --muted-soft: rgba(255, 255, 255, 0.34);
+      --red: #e60026;
+      --red-deep: #9f001b;
+      --danger: #ff6b7c;
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: #07080b;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
+        "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    body {
+      overflow-x: hidden;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.42;
+    }
+
+    .app-root {
+      min-height: 100dvh;
+      width: min(100%, 720px);
+      margin: 0 auto;
+      background:
+        linear-gradient(180deg, rgba(28, 29, 34, 0.96), rgba(12, 13, 18, 0.98) 42%, #07080c 100%),
+        #0b0c10;
+    }
+
+    .icon-button {
+      width: 42px;
+      height: 42px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.78);
+      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible {
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      outline: none;
+    }
+
+    .icon-button:active {
+      transform: scale(0.94);
+    }
+
+    .icon {
+      width: 22px;
+      height: 22px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .primary-button {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 14px;
+      border-radius: 8px;
+      background: var(--red);
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 10px 26px rgba(230, 0, 38, 0.2);
+    }
+
+    .secondary-button {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 13px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.84);
+      font-weight: 650;
+    }
+
+    .library {
+      min-height: 100dvh;
+      padding: max(18px, env(safe-area-inset-top)) 16px max(26px, env(safe-area-inset-bottom));
+    }
+
+    .library-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: 52px 1fr 44px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0 18px;
+      background:
+        linear-gradient(180deg, rgba(15, 16, 20, 0.98) 72%, rgba(15, 16, 20, 0)),
+        transparent;
+      backdrop-filter: blur(14px);
+    }
+
+    .brand-mark,
+    .default-cover {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 50%, #1b1c20 0 14%, transparent 15%),
+        radial-gradient(circle at 50% 50%, #f5f5f5 0 8%, transparent 9%),
+        radial-gradient(circle at 50% 50%, #cb001f 0 46%, #8f0018 47% 100%);
+    }
+
+    .brand-mark {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .brand-mark::after,
+    .default-cover::after {
+      content: "";
+      position: absolute;
+      width: 38%;
+      height: 38%;
+      left: 31%;
+      top: 22%;
+      border: 4px solid rgba(255, 255, 255, 0.92);
+      border-left-color: transparent;
+      border-bottom-color: transparent;
+      border-radius: 50%;
+      transform: rotate(-38deg);
+    }
+
+    .library-title h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      line-height: 1.1;
+    }
+
+    .library-title p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .library-tools {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 4px 0 18px;
+    }
+
+    .search-box {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.055);
+      color: var(--muted);
+    }
+
+    .search-box input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+    }
+
+    .search-box input::placeholder {
+      color: rgba(255, 255, 255, 0.42);
+    }
+
+    .song-list {
+      display: grid;
+      gap: 12px;
+      padding-bottom: 10px;
+    }
+
+    .song-card {
+      display: grid;
+      grid-template-columns: 76px 1fr 42px;
+      align-items: center;
+      gap: 13px;
+      min-height: 96px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.052);
+      box-shadow: 0 12px 26px rgba(0, 0, 0, 0.14);
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .song-card:hover,
+    .song-card:focus-visible {
+      border-color: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.075);
+      outline: none;
+    }
+
+    .song-card:active {
+      transform: translateY(1px);
+    }
+
+    .cover {
+      width: 76px;
+      aspect-ratio: 1 / 1;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 12px 22px rgba(0, 0, 0, 0.3);
+      background: #18191e;
+    }
+
+    .cover img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .song-info {
+      min-width: 0;
+    }
+
+    .song-name {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.25;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .song-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .song-snippet {
+      margin: 9px 0 0;
+      color: rgba(255, 255, 255, 0.42);
+      font-size: 0.86rem;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      padding: 46px 20px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .empty-state p {
+      margin: 0 0 18px;
+    }
+
+    .editor {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background:
+        linear-gradient(180deg, #1b1b21 0%, #17171c 22%, #111116 58%, #090a10 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .editor::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022), transparent 22%, transparent 78%, rgba(255, 255, 255, 0.018)),
+        linear-gradient(180deg, rgba(230, 0, 38, 0.06), transparent 38%);
+    }
+
+    .editor-topbar,
+    .editor-cover-row,
+    .lyric-actions,
+    .lyrics-scroll,
+    .player {
+      position: relative;
+      z-index: 1;
+    }
+
+    .editor-topbar {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) 48px;
+      align-items: center;
+      gap: 6px;
+      padding: max(12px, env(safe-area-inset-top)) 12px 8px;
+    }
+
+    .title-stack {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .title-input,
+    .artist-input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .title-input {
+      font-size: 1.24rem;
+      line-height: 1.2;
+      font-weight: 800;
+    }
+
+    .artist-input {
+      margin-top: 7px;
+      color: rgba(255, 255, 255, 0.42);
+      font-size: 0.92rem;
+      font-weight: 650;
+    }
+
+    .title-input::placeholder,
+    .artist-input::placeholder {
+      color: rgba(255, 255, 255, 0.28);
+    }
+
+    .editor-cover-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 16px 10px;
+    }
+
+    .cover-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      max-width: 100%;
+      min-height: 36px;
+      padding: 5px 12px 5px 5px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(255, 255, 255, 0.58);
+      font-size: 0.82rem;
+      font-weight: 650;
+    }
+
+    .cover-chip .mini-cover {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      overflow: hidden;
+      flex: 0 0 auto;
+      background: #15161b;
+    }
+
+    .mini-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .save-state {
+      min-height: 20px;
+      color: rgba(255, 255, 255, 0.34);
+      font-size: 0.75rem;
+      text-align: center;
+      padding: 0 16px 4px;
+    }
+
+    .lyric-actions {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      padding: 4px 16px 0;
+    }
+
+    .lyrics-scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: 28px 18px 34px;
+      scroll-padding: 36vh 0;
+      min-height: 340px;
+    }
+
+    .lyrics-scroll::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    .lyric-line {
+      width: min(100%, 620px);
+      margin: 0 auto 24px;
+      transition: transform 180ms ease, opacity 180ms ease;
+    }
+
+    .lyric-line textarea {
+      display: block;
+      width: 100%;
+      min-height: 40px;
+      resize: none;
+      overflow: hidden;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.34);
+      text-align: center;
+      font-size: 1.28rem;
+      line-height: 1.45;
+      font-weight: 700;
+      caret-color: white;
+      transition: color 180ms ease, font-size 180ms ease, text-shadow 180ms ease;
+    }
+
+    .lyric-line textarea::placeholder {
+      color: rgba(255, 255, 255, 0.2);
+    }
+
+    .lyric-line.active {
+      transform: scale(1.015);
+    }
+
+    .lyric-line.active textarea {
+      color: #fff;
+      font-size: 1.55rem;
+      text-shadow: 0 10px 24px rgba(255, 255, 255, 0.11);
+    }
+
+    .lyric-line.near textarea {
+      color: rgba(255, 255, 255, 0.48);
+    }
+
+    .player {
+      flex: 0 0 auto;
+      padding: 12px 18px max(16px, env(safe-area-inset-bottom));
+      background:
+        linear-gradient(180deg, rgba(9, 10, 14, 0), rgba(8, 9, 13, 0.86) 22%, rgba(8, 9, 13, 0.98) 100%);
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 10px;
+      align-items: center;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 0.76rem;
+      font-weight: 650;
+    }
+
+    .progress {
+      position: relative;
+      height: 18px;
+    }
+
+    .progress::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 8px;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.32);
+    }
+
+    .progress::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 8px;
+      width: var(--progress-width, 42%);
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.86);
+    }
+
+    .progress-knob {
+      position: absolute;
+      top: 4px;
+      left: var(--progress-width, 42%);
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      transform: translateX(-50%);
+      background: #fff;
+    }
+
+    .quality {
+      margin: 4px 0 12px;
+      color: rgba(255, 255, 255, 0.3);
+      text-align: center;
+      font-size: 0.76rem;
+      font-weight: 650;
+    }
+
+    .transport {
+      display: grid;
+      grid-template-columns: 1fr 1fr 72px 1fr 1fr;
+      align-items: center;
+      justify-items: center;
+      gap: 10px;
+      max-width: 430px;
+      margin: 0 auto;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .play-button {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.86);
+      color: #111217;
+      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+    }
+
+    .bottom-actions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      max-width: 430px;
+      margin: 16px auto 0;
+      color: rgba(255, 255, 255, 0.48);
+    }
+
+    .bottom-actions .icon-button {
+      width: 100%;
+      height: 38px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .export-sheet {
+      position: fixed;
+      left: 50%;
+      bottom: 0;
+      z-index: 30;
+      width: min(100%, 720px);
+      transform: translate(-50%, 110%);
+      padding: 14px 14px max(18px, env(safe-area-inset-bottom));
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(20, 21, 26, 0.98);
+      box-shadow: 0 -22px 48px rgba(0, 0, 0, 0.34);
+      transition: transform 180ms ease;
+    }
+
+    .export-sheet.open {
+      transform: translate(-50%, 0);
+    }
+
+    .export-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: rgba(255, 255, 255, 0.82);
+      font-weight: 750;
+    }
+
+    .export-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .export-grid button {
+      min-height: 86px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.055);
+      color: rgba(255, 255, 255, 0.82);
+      display: grid;
+      place-items: center;
+      gap: 6px;
+      font-weight: 750;
+    }
+
+    .export-grid span {
+      font-size: 0.82rem;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      z-index: 40;
+      max-width: min(92vw, 360px);
+      transform: translate(-50%, 24px);
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #111217;
+      font-size: 0.86rem;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (min-width: 760px) {
+      body {
+        background:
+          linear-gradient(180deg, #17181d, #07080b);
+      }
+
+      .app-root {
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 26px 80px rgba(0, 0, 0, 0.42);
+      }
+
+      .library {
+        padding-left: 22px;
+        padding-right: 22px;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .song-card {
+        grid-template-columns: 68px 1fr 38px;
+      }
+
+      .cover {
+        width: 68px;
+      }
+
+      .transport {
+        grid-template-columns: 1fr 1fr 66px 1fr 1fr;
+      }
+
+      .play-button {
+        width: 58px;
+        height: 58px;
+      }
+
+      .lyric-line textarea {
+        font-size: 1.15rem;
+      }
+
+      .lyric-line.active textarea {
+        font-size: 1.38rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="app-root"></div>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script>
+    const DB_NAME = "local-lyric-notebook";
+    const DB_VERSION = 1;
+    const STORE_NAME = "songs";
+    const FALLBACK_KEY = "local-lyric-notebook-fallback";
+
+    const icons = {
+      add: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+      back: '<svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
+      chevronDown: '<svg class="icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+      dots: '<svg class="icon" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>',
+      export: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
+      image: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/><path d="M14 9h.01"/></svg>',
+      word: '<svg class="icon" viewBox="0 0 24 24"><path d="M5 3h10l4 4v17H5z"/><path d="M15 3v5h5"/><path d="m8 12 1.4 6 1.6-5 1.6 5 1.4-6"/></svg>',
+      pdf: '<svg class="icon" viewBox="0 0 24 24"><path d="M5 3h10l4 4v17H5z"/><path d="M15 3v5h5"/><path d="M8 17h8"/><path d="M8 13h8"/></svg>',
+      search: '<svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>',
+      trash: '<svg class="icon" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 15h10l1-15"/><path d="M9 7V4h6v3"/></svg>',
+      upload: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 21h14"/></svg>',
+      up: '<svg class="icon" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg>',
+      down: '<svg class="icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+      loop: '<svg class="icon" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a5 5 0 0 1 5-5h13"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a5 5 0 0 1-5 5H3"/></svg>',
+      prev: '<svg class="icon" viewBox="0 0 24 24"><path d="M19 20 9 12l10-8v16Z"/><path d="M5 19V5"/></svg>',
+      next: '<svg class="icon" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8V4Z"/><path d="M19 5v14"/></svg>',
+      play: '<svg class="icon" viewBox="0 0 24 24"><path d="m8 5 13 7-13 7V5Z"/></svg>',
+      list: '<svg class="icon" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+      mic: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>',
+      heart: '<svg class="icon" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>',
+      info: '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+    };
+
+    const app = document.querySelector("#app");
+    const toastNode = document.querySelector("#toast");
+    const state = {
+      songs: [],
+      activeSongId: "",
+      view: "library",
+      storage: "indexedDB",
+      search: "",
+      saveTimer: 0,
+      toastTimer: 0,
+      focusLine: null,
+      exporting: false
+    };
+
+    let dbPromise = null;
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function uid() {
+      if (crypto.randomUUID) return crypto.randomUUID();
+      return "song-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    }
+
+    function makeSong(title = "新的灵感") {
+      const now = Date.now();
+      return {
+        id: uid(),
+        title,
+        artist: "本地创作",
+        cover: "",
+        lines: ["把刚出现的旋律写下来", "让副歌先亮一下", "下一句留给深夜"],
+        activeIndex: 1,
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+
+    function openDatabase() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise((resolve, reject) => {
+        if (!("indexedDB" in window)) {
+          reject(new Error("indexedDB unavailable"));
+          return;
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: "id" });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("indexedDB open failed"));
+      });
+      return dbPromise;
+    }
+
+    function storeRequest(mode, callback) {
+      return openDatabase().then((db) => new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, mode);
+        const store = tx.objectStore(STORE_NAME);
+        const request = callback(store);
+        let requestResult;
+        if (request) {
+          request.onsuccess = () => {
+            requestResult = request.result;
+          };
+          request.onerror = () => reject(request.error || new Error("store request failed"));
+        }
+        tx.oncomplete = () => resolve(requestResult);
+        tx.onerror = () => reject(tx.error || new Error("transaction failed"));
+      }));
+    }
+
+    async function loadSongs() {
+      try {
+        state.storage = "indexedDB";
+        const songs = await storeRequest("readonly", (store) => store.getAll());
+        state.songs = Array.isArray(songs) ? songs : [];
+      } catch (error) {
+        state.storage = "localStorage";
+        const raw = localStorage.getItem(FALLBACK_KEY);
+        state.songs = raw ? JSON.parse(raw) : [];
+      }
+      state.songs.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      if (!state.songs.length) {
+        const starter = makeSong("新的灵感");
+        state.songs = [starter];
+        state.activeSongId = starter.id;
+        await saveSong(starter, true);
+      }
+    }
+
+    async function saveSong(song, immediate = false) {
+      song.updatedAt = Date.now();
+      if (!immediate) setSaveState("保存中");
+      try {
+        if (state.storage === "indexedDB") {
+          await storeRequest("readwrite", (store) => store.put(song));
+        } else {
+          localStorage.setItem(FALLBACK_KEY, JSON.stringify(state.songs));
+        }
+        if (!immediate) setSaveState("已自动保存");
+      } catch (error) {
+        setSaveState("保存失败");
+        showToast("本地保存空间可能已满");
+      }
+    }
+
+    async function deleteSong(id) {
+      if (state.storage === "indexedDB") {
+        await storeRequest("readwrite", (store) => store.delete(id));
+      } else {
+        localStorage.setItem(FALLBACK_KEY, JSON.stringify(state.songs));
+      }
+    }
+
+    function scheduleSave(song) {
+      clearTimeout(state.saveTimer);
+      state.saveTimer = window.setTimeout(() => saveSong(song), 320);
+    }
+
+    function currentSong() {
+      return state.songs.find((song) => song.id === state.activeSongId) || state.songs[0];
+    }
+
+    function nonEmptyLines(song) {
+      return song.lines.filter((line) => String(line).trim()).length;
+    }
+
+    function firstSnippet(song) {
+      const text = song.lines.find((line) => String(line).trim());
+      return text || "还没有写下歌词";
+    }
+
+    function formatDate(timestamp) {
+      const date = new Date(timestamp || Date.now());
+      return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
+    }
+
+    function songCoverHtml(song, className = "cover") {
+      if (song.cover) {
+        return `<div class="${className}"><img alt="${escapeHtml(song.title)} 封面" src="${song.cover}"></div>`;
+      }
+      return `<div class="${className} default-cover" aria-label="默认封面"></div>`;
+    }
+
+    function renderLibrary() {
+      const query = state.search.trim().toLowerCase();
+      const songs = state.songs.filter((song) => {
+        if (!query) return true;
+        return `${song.title} ${song.artist} ${song.lines.join(" ")}`.toLowerCase().includes(query);
+      });
+
+      app.innerHTML = `
+        <main class="library">
+          <header class="library-header">
+            <div class="brand-mark" aria-hidden="true"></div>
+            <div class="library-title">
+              <h1>歌词记事本</h1>
+              <p>${state.songs.length} 首作品，全都保存在本地</p>
+            </div>
+            <button class="icon-button" data-action="add-song" title="新建作品" aria-label="新建作品">${icons.add}</button>
+          </header>
+          <div class="library-tools">
+            <label class="search-box">
+              ${icons.search}
+              <input id="searchInput" type="search" value="${escapeHtml(state.search)}" placeholder="搜索歌名、作者或歌词">
+            </label>
+          </div>
+          <section class="song-list" aria-label="作品列表">
+            ${songs.length ? songs.map((song) => `
+              <article class="song-card" tabindex="0" data-song-id="${song.id}">
+                ${songCoverHtml(song)}
+                <div class="song-info">
+                  <h2 class="song-name">${escapeHtml(song.title || "未命名作品")}</h2>
+                  <div class="song-meta">
+                    <span>${escapeHtml(song.artist || "本地创作")}</span>
+                    <span>${nonEmptyLines(song)} 行歌词</span>
+                    <span>${formatDate(song.updatedAt)}</span>
+                  </div>
+                  <p class="song-snippet">${escapeHtml(firstSnippet(song))}</p>
+                </div>
+                <button class="icon-button" data-action="delete-song" data-id="${song.id}" title="删除作品" aria-label="删除作品">${icons.trash}</button>
+              </article>
+            `).join("") : `
+              <div class="empty-state">
+                <p>没有找到匹配的作品。</p>
+                <button class="primary-button" data-action="add-song">${icons.add}<span>新建作品</span></button>
+              </div>
+            `}
+          </section>
+        </main>
+      `;
+      const searchInput = document.querySelector("#searchInput");
+      if (searchInput) {
+        searchInput.selectionStart = searchInput.selectionEnd = searchInput.value.length;
+      }
+    }
+
+    function renderEditor() {
+      const song = currentSong();
+      if (!song) {
+        state.view = "library";
+        renderLibrary();
+        return;
+      }
+      if (!song.lines.length) song.lines.push("");
+      const activeIndex = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
+      song.activeIndex = activeIndex;
+      const progress = song.lines.length > 1 ? Math.round((activeIndex / (song.lines.length - 1)) * 100) : 42;
+
+      app.innerHTML = `
+        <main class="editor">
+          <input id="coverInput" class="hidden" type="file" accept="image/*">
+          <header class="editor-topbar">
+            <button class="icon-button" data-action="back-library" title="返回作品列表" aria-label="返回作品列表">${icons.chevronDown}</button>
+            <div class="title-stack">
+              <input class="title-input" data-field="title" value="${escapeHtml(song.title)}" placeholder="歌名">
+              <input class="artist-input" data-field="artist" value="${escapeHtml(song.artist || "")}" placeholder="作者 / 备注">
+            </div>
+            <button class="icon-button" data-action="toggle-export" title="导出" aria-label="导出">${icons.export}</button>
+          </header>
+
+          <div class="editor-cover-row">
+            <button class="cover-chip" data-action="upload-cover" title="上传或更换封面">
+              ${songCoverHtml(song, "mini-cover")}
+              <span>${song.cover ? "更换封面" : "上传封面"}</span>
+            </button>
+          </div>
+          <div id="saveState" class="save-state">已自动保存</div>
+
+          <div class="lyric-actions" aria-label="歌词行工具">
+            <button class="icon-button" data-action="add-line" title="在当前行后添加" aria-label="在当前行后添加">${icons.add}</button>
+            <button class="icon-button" data-action="move-line-up" title="当前行上移" aria-label="当前行上移">${icons.up}</button>
+            <button class="icon-button" data-action="move-line-down" title="当前行下移" aria-label="当前行下移">${icons.down}</button>
+            <button class="icon-button" data-action="delete-line" title="删除当前行" aria-label="删除当前行">${icons.trash}</button>
+          </div>
+
+          <section id="lyricsScroll" class="lyrics-scroll" aria-label="歌词编辑区">
+            ${song.lines.map((line, index) => {
+              const distance = Math.abs(index - activeIndex);
+              const tone = index === activeIndex ? "active" : distance === 1 ? "near" : "";
+              return `
+                <div class="lyric-line ${tone}" data-line-wrap="${index}">
+                  <textarea rows="1" data-line-index="${index}" placeholder="写下一句歌词">${escapeHtml(line)}</textarea>
+                </div>
+              `;
+            }).join("")}
+          </section>
+
+          <footer class="player">
+            <div class="timeline">
+              <span>${String(activeIndex + 1).padStart(2, "0")}</span>
+              <div class="progress" style="--progress-width:${progress}%"><span class="progress-knob"></span></div>
+              <span>${String(song.lines.length).padStart(2, "0")}</span>
+            </div>
+            <div class="quality">本地灵感 · 高亮歌词预览</div>
+            <div class="transport" aria-hidden="true">
+              <button class="icon-button" tabindex="-1">${icons.loop}</button>
+              <button class="icon-button" tabindex="-1">${icons.prev}</button>
+              <button class="play-button" tabindex="-1">${icons.play}</button>
+              <button class="icon-button" tabindex="-1">${icons.next}</button>
+              <button class="icon-button" tabindex="-1">${icons.list}</button>
+            </div>
+            <div class="bottom-actions">
+              <button class="icon-button" data-action="upload-cover" title="封面" aria-label="封面">${icons.image}</button>
+              <button class="icon-button" data-action="toggle-export" title="导出" aria-label="导出">${icons.export}</button>
+              <button class="icon-button" title="歌词信息" aria-label="歌词信息">${icons.info}</button>
+              <button class="icon-button" data-action="back-library" title="作品列表" aria-label="作品列表">${icons.dots}</button>
+            </div>
+          </footer>
+
+          <aside id="exportSheet" class="export-sheet" aria-label="导出面板">
+            <div class="export-head">
+              <span>导出当前歌词长图</span>
+              <button class="icon-button" data-action="toggle-export" title="关闭" aria-label="关闭">${icons.down}</button>
+            </div>
+            <div class="export-grid">
+              <button data-action="export-png">${icons.image}<span>图片</span></button>
+              <button data-action="export-word">${icons.word}<span>Word</span></button>
+              <button data-action="export-pdf">${icons.pdf}<span>PDF</span></button>
+            </div>
+          </aside>
+        </main>
+      `;
+
+      requestAnimationFrame(() => {
+        document.querySelectorAll("textarea[data-line-index]").forEach(fitTextarea);
+        const targetIndex = state.focusLine ?? activeIndex;
+        state.focusLine = null;
+        const target = document.querySelector(`textarea[data-line-index="${targetIndex}"]`);
+        if (target) {
+          target.focus({ preventScroll: true });
+          target.selectionStart = target.selectionEnd = target.value.length;
+          centerLine(targetIndex, false);
+        }
+      });
+    }
+
+    function render() {
+      if (state.view === "editor") renderEditor();
+      else renderLibrary();
+    }
+
+    function setSaveState(text) {
+      const node = document.querySelector("#saveState");
+      if (node) node.textContent = text;
+    }
+
+    function showToast(message) {
+      clearTimeout(state.toastTimer);
+      toastNode.textContent = message;
+      toastNode.classList.add("show");
+      state.toastTimer = window.setTimeout(() => toastNode.classList.remove("show"), 1800);
+    }
+
+    function fitTextarea(textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.max(40, textarea.scrollHeight)}px`;
+    }
+
+    function centerLine(index, smooth = true) {
+      const wrap = document.querySelector(`[data-line-wrap="${index}"]`);
+      if (!wrap) return;
+      wrap.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+    }
+
+    function setActiveLine(index, shouldScroll = true) {
+      const song = currentSong();
+      if (!song) return;
+      const nextIndex = Math.min(Math.max(index, 0), song.lines.length - 1);
+      song.activeIndex = nextIndex;
+      document.querySelectorAll(".lyric-line").forEach((node) => {
+        const lineIndex = Number(node.dataset.lineWrap);
+        const distance = Math.abs(lineIndex - nextIndex);
+        node.classList.toggle("active", lineIndex === nextIndex);
+        node.classList.toggle("near", lineIndex !== nextIndex && distance === 1);
+      });
+      const progress = document.querySelector(".progress");
+      if (progress) {
+        const width = song.lines.length > 1 ? Math.round((nextIndex / (song.lines.length - 1)) * 100) : 42;
+        progress.style.setProperty("--progress-width", `${width}%`);
+      }
+      const timeline = document.querySelector(".timeline span");
+      if (timeline) timeline.textContent = String(nextIndex + 1).padStart(2, "0");
+      scheduleSave(song);
+      if (shouldScroll) centerLine(nextIndex);
+    }
+
+    function addLineAfter(index) {
+      const song = currentSong();
+      if (!song) return;
+      const insertAt = Math.min(Math.max(index + 1, 0), song.lines.length);
+      song.lines.splice(insertAt, 0, "");
+      song.activeIndex = insertAt;
+      state.focusLine = insertAt;
+      scheduleSave(song);
+      renderEditor();
+    }
+
+    function deleteActiveLine() {
+      const song = currentSong();
+      if (!song) return;
+      if (song.lines.length === 1) {
+        song.lines[0] = "";
+        song.activeIndex = 0;
+      } else {
+        song.lines.splice(song.activeIndex, 1);
+        song.activeIndex = Math.min(song.activeIndex, song.lines.length - 1);
+      }
+      state.focusLine = song.activeIndex;
+      scheduleSave(song);
+      renderEditor();
+    }
+
+    function moveActiveLine(direction) {
+      const song = currentSong();
+      if (!song) return;
+      const from = song.activeIndex;
+      const to = from + direction;
+      if (to < 0 || to >= song.lines.length) return;
+      const [line] = song.lines.splice(from, 1);
+      song.lines.splice(to, 0, line);
+      song.activeIndex = to;
+      state.focusLine = to;
+      scheduleSave(song);
+      renderEditor();
+    }
+
+    async function addSong() {
+      const song = makeSong();
+      state.songs.unshift(song);
+      state.activeSongId = song.id;
+      state.view = "editor";
+      await saveSong(song, true);
+      renderEditor();
+    }
+
+    async function removeSong(id) {
+      const song = state.songs.find((item) => item.id === id);
+      if (!song) return;
+      const ok = confirm(`删除《${song.title || "未命名作品"}》？本地数据会一起删除。`);
+      if (!ok) return;
+      state.songs = state.songs.filter((item) => item.id !== id);
+      await deleteSong(id);
+      if (!state.songs.length) {
+        const starter = makeSong();
+        state.songs = [starter];
+        await saveSong(starter, true);
+      }
+      state.activeSongId = state.songs[0].id;
+      renderLibrary();
+    }
+
+    async function handleCoverFile(file) {
+      if (!file || !file.type.startsWith("image/")) {
+        showToast("请选择图片文件");
+        return;
+      }
+      const song = currentSong();
+      if (!song) return;
+      try {
+        song.cover = await readCompressedImage(file, 900, 0.88);
+        await saveSong(song, true);
+        renderEditor();
+        showToast("封面已保存到本地");
+      } catch (error) {
+        showToast("封面读取失败");
+      }
+    }
+
+    function readCompressedImage(file, size, quality) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#111217";
+          ctx.fillRect(0, 0, size, size);
+          const ratio = Math.max(size / img.width, size / img.height);
+          const width = img.width * ratio;
+          const height = img.height * ratio;
+          ctx.drawImage(img, (size - width) / 2, (size - height) / 2, width, height);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("image load failed"));
+        };
+        img.src = url;
+      });
+    }
+
+    app.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-action]");
+      const card = event.target.closest("[data-song-id]");
+      if (button) {
+        event.stopPropagation();
+        const action = button.dataset.action;
+        if (action === "add-song") await addSong();
+        if (action === "delete-song") await removeSong(button.dataset.id);
+        if (action === "back-library") {
+          state.view = "library";
+          renderLibrary();
+        }
+        if (action === "upload-cover") {
+          document.querySelector("#coverInput")?.click();
+        }
+        if (action === "toggle-export") {
+          document.querySelector("#exportSheet")?.classList.toggle("open");
+        }
+        if (action === "add-line") addLineAfter(currentSong()?.activeIndex || 0);
+        if (action === "delete-line") deleteActiveLine();
+        if (action === "move-line-up") moveActiveLine(-1);
+        if (action === "move-line-down") moveActiveLine(1);
+        if (action === "export-png") await exportSong("png");
+        if (action === "export-word") await exportSong("word");
+        if (action === "export-pdf") await exportSong("pdf");
+        return;
+      }
+      if (card) {
+        state.activeSongId = card.dataset.songId;
+        state.view = "editor";
+        renderEditor();
+      }
+    });
+
+    app.addEventListener("keydown", (event) => {
+      const card = event.target.closest("[data-song-id]");
+      if (card && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        state.activeSongId = card.dataset.songId;
+        state.view = "editor";
+        renderEditor();
+        return;
+      }
+
+      const textarea = event.target.closest("textarea[data-line-index]");
+      if (!textarea) return;
+      const index = Number(textarea.dataset.lineIndex);
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        const song = currentSong();
+        song.lines[index] = textarea.value;
+        addLineAfter(index);
+      }
+      if (event.key === "Backspace" && textarea.value === "" && currentSong().lines.length > 1) {
+        event.preventDefault();
+        currentSong().activeIndex = index;
+        deleteActiveLine();
+      }
+    });
+
+    app.addEventListener("focusin", (event) => {
+      const textarea = event.target.closest("textarea[data-line-index]");
+      if (textarea) {
+        setActiveLine(Number(textarea.dataset.lineIndex), true);
+      }
+    });
+
+    app.addEventListener("input", (event) => {
+      const search = event.target.closest("#searchInput");
+      if (search) {
+        state.search = search.value;
+        renderLibrary();
+        return;
+      }
+
+      const field = event.target.closest("[data-field]");
+      if (field) {
+        const song = currentSong();
+        if (!song) return;
+        song[field.dataset.field] = field.value;
+        scheduleSave(song);
+        return;
+      }
+
+      const textarea = event.target.closest("textarea[data-line-index]");
+      if (textarea) {
+        const song = currentSong();
+        const index = Number(textarea.dataset.lineIndex);
+        song.lines[index] = textarea.value;
+        fitTextarea(textarea);
+        setActiveLine(index, false);
+        scheduleSave(song);
+      }
+    });
+
+    app.addEventListener("change", (event) => {
+      if (event.target.matches("#coverInput")) {
+        handleCoverFile(event.target.files[0]);
+      }
+    });
+
+    function sanitizeFileName(name) {
+      return (name || "歌词")
+        .replace(/[\\/:*?"<>|]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 48) || "歌词";
+    }
+
+    async function exportSong(type) {
+      if (state.exporting) return;
+      const song = currentSong();
+      if (!song) return;
+      state.exporting = true;
+      document.querySelector("#exportSheet")?.classList.remove("open");
+      showToast("正在生成导出文件");
+      try {
+        const canvas = await renderSongCanvas(song);
+        const filename = sanitizeFileName(song.title);
+        if (type === "png") {
+          const blob = await canvasToBlob(canvas, "image/png");
+          downloadBlob(blob, `${filename}-歌词长图.png`);
+        }
+        if (type === "word") {
+          const dataUrl = canvas.toDataURL("image/png");
+          const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(song.title)}</title><style>@page{margin:0;}body{margin:0;background:#111217;}img{display:block;width:100%;height:auto;}</style></head><body><img src="${dataUrl}" alt="${escapeHtml(song.title)}"></body></html>`;
+          const blob = new Blob([html], { type: "application/msword;charset=utf-8" });
+          downloadBlob(blob, `${filename}-歌词长图.doc`);
+        }
+        if (type === "pdf") {
+          const jpegBytes = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92));
+          const pdfBytes = buildPdfWithJpeg(jpegBytes, canvas.width, canvas.height);
+          const blob = new Blob([pdfBytes], { type: "application/pdf" });
+          downloadBlob(blob, `${filename}-歌词长图.pdf`);
+        }
+        showToast("导出完成");
+      } catch (error) {
+        showToast("导出失败，请稍后重试");
+      } finally {
+        state.exporting = false;
+      }
+    }
+
+    function canvasToBlob(canvas, type) {
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob), type);
+      });
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+    }
+
+    async function renderSongCanvas(song) {
+      if (document.fonts?.ready) await document.fonts.ready;
+      const width = 1080;
+      const side = 96;
+      const lyricTop = 390;
+      const bottomHeight = 390;
+      const prepared = prepareCanvasLines(song, width - side * 2);
+      const lyricHeight = prepared.reduce((sum, item) => sum + item.height + 34, 0);
+      const height = Math.max(1680, lyricTop + lyricHeight + bottomHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+
+      drawExportBackground(ctx, width, height);
+      drawExportTop(ctx, song, width);
+      drawExportLyrics(ctx, song, prepared, width, lyricTop);
+      drawExportPlayer(ctx, song, width, height);
+      return canvas;
+    }
+
+    function prepareCanvasLines(song, maxWidth) {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const active = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
+      return song.lines.map((line, index) => {
+        const isActive = index === active;
+        const fontSize = isActive ? 54 : 42;
+        ctx.font = `${isActive ? 800 : 700} ${fontSize}px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial`;
+        const wrapped = wrapText(ctx, String(line || " "), maxWidth);
+        return {
+          index,
+          text: line,
+          lines: wrapped,
+          active: isActive,
+          fontSize,
+          lineHeight: isActive ? 76 : 64,
+          height: wrapped.length * (isActive ? 76 : 64)
+        };
+      });
+    }
+
+    function wrapText(ctx, text, maxWidth) {
+      const normalized = text.replace(/\s+/g, " ").trim() || " ";
+      const hasSpaces = /\s/.test(normalized);
+      const units = hasSpaces ? normalized.split(/(\s+)/) : Array.from(normalized);
+      const lines = [];
+      let line = "";
+
+      for (const unit of units) {
+        const test = line + unit;
+        if (ctx.measureText(test).width <= maxWidth || !line) {
+          line = test;
+        } else {
+          lines.push(line.trimEnd());
+          line = unit.trimStart();
+        }
+      }
+      if (line) lines.push(line.trimEnd());
+      return lines.length ? lines : [" "];
+    }
+
+    function drawExportBackground(ctx, width, height) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, "#1b1b21");
+      gradient.addColorStop(0.28, "#17171c");
+      gradient.addColorStop(0.66, "#101015");
+      gradient.addColorStop(1, "#080a10");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      const redWash = ctx.createLinearGradient(0, 0, 0, height);
+      redWash.addColorStop(0, "rgba(230,0,38,0.10)");
+      redWash.addColorStop(0.36, "rgba(230,0,38,0.03)");
+      redWash.addColorStop(1, "rgba(230,0,38,0)");
+      ctx.fillStyle = redWash;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "rgba(255,255,255,0.018)";
+      for (let x = 0; x < width; x += 80) {
+        ctx.fillRect(x, 0, 1, height);
+      }
+    }
+
+    function drawExportTop(ctx, song, width) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.78)";
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(72, 96);
+      ctx.lineTo(108, 132);
+      ctx.lineTo(144, 96);
+      ctx.stroke();
+
+      ctx.font = '800 42px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial';
+      ctx.fillStyle = "rgba(255,255,255,0.82)";
+      ctx.textAlign = "center";
+      ctx.fillText(song.title || "未命名作品", width / 2, 105);
+
+      ctx.font = '700 30px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial';
+      ctx.fillStyle = "rgba(255,255,255,0.36)";
+      ctx.fillText(song.artist || "本地创作", width / 2, 154);
+
+      const pillText = "本地歌词";
+      ctx.font = '700 28px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial';
+      const pillWidth = ctx.measureText(pillText).width + 70;
+      roundRect(ctx, (width - pillWidth) / 2, 212, pillWidth, 54, 27);
+      ctx.fillStyle = "rgba(255,255,255,0.075)";
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.48)";
+      ctx.fillText(pillText, width / 2, 248);
+      ctx.restore();
+    }
+
+    function drawExportLyrics(ctx, song, prepared, width, top) {
+      const active = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
+      let y = top;
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (const item of prepared) {
+        const distance = Math.abs(item.index - active);
+        const alpha = item.active ? 1 : Math.max(0.14, 0.5 - distance * 0.065);
+        ctx.font = `${item.active ? 800 : 700} ${item.fontSize}px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial`;
+        ctx.fillStyle = item.active ? "#ffffff" : `rgba(255,255,255,${alpha.toFixed(3)})`;
+        if (item.active) {
+          ctx.shadowColor = "rgba(255,255,255,0.13)";
+          ctx.shadowBlur = 24;
+        } else {
+          ctx.shadowBlur = 0;
+        }
+        const blockCenter = y + item.height / 2;
+        item.lines.forEach((line, lineIndex) => {
+          const lineY = blockCenter - item.height / 2 + item.lineHeight / 2 + lineIndex * item.lineHeight;
+          ctx.fillText(line || " ", width / 2, lineY);
+        });
+        y += item.height + 34;
+      }
+      ctx.restore();
+    }
+
+    function drawExportPlayer(ctx, song, width, height) {
+      const base = height - 290;
+      const active = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
+      const progress = song.lines.length > 1 ? active / (song.lines.length - 1) : 0.42;
+
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.34)";
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(80, base);
+      ctx.lineTo(width - 80, base);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.86)";
+      ctx.beginPath();
+      ctx.moveTo(80, base);
+      ctx.lineTo(80 + (width - 160) * progress, base);
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(80 + (width - 160) * progress, base, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = '700 28px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial';
+      ctx.fillStyle = "rgba(255,255,255,0.34)";
+      ctx.textAlign = "left";
+      ctx.fillText(String(active + 1).padStart(2, "0"), 80, base + 62);
+      ctx.textAlign = "right";
+      ctx.fillText(String(song.lines.length).padStart(2, "0"), width - 80, base + 62);
+      ctx.textAlign = "center";
+      ctx.fillText("本地灵感 · 高亮歌词预览", width / 2, base + 62);
+
+      drawTransportIcons(ctx, width, base + 158);
+      ctx.restore();
+    }
+
+    function drawTransportIcons(ctx, width, y) {
+      const color = "rgba(255,255,255,0.68)";
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 8;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      ctx.beginPath();
+      ctx.arc(120, y, 26, 0.4, Math.PI * 1.72);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(96, y - 20);
+      ctx.lineTo(126, y - 20);
+      ctx.lineTo(126, y - 50);
+      ctx.stroke();
+
+      drawPrevNext(ctx, width / 2 - 230, y, -1);
+      drawPlay(ctx, width / 2, y);
+      drawPrevNext(ctx, width / 2 + 230, y, 1);
+
+      ctx.beginPath();
+      ctx.moveTo(width - 144, y - 28);
+      ctx.lineTo(width - 88, y - 28);
+      ctx.moveTo(width - 144, y);
+      ctx.lineTo(width - 88, y);
+      ctx.moveTo(width - 144, y + 28);
+      ctx.lineTo(width - 88, y + 28);
+      ctx.stroke();
+    }
+
+    function drawPlay(ctx, x, y) {
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,0.86)";
+      ctx.beginPath();
+      ctx.moveTo(x - 30, y - 46);
+      ctx.lineTo(x - 30, y + 46);
+      ctx.lineTo(x + 52, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPrevNext(ctx, x, y, direction) {
+      ctx.save();
+      ctx.fillStyle = "rgba(255,255,255,0.72)";
+      const flip = direction < 0 ? -1 : 1;
+      ctx.translate(x, y);
+      ctx.scale(flip, 1);
+      ctx.beginPath();
+      ctx.moveTo(-34, -42);
+      ctx.lineTo(20, 0);
+      ctx.lineTo(-34, 42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(255,255,255,0.72)";
+      ctx.beginPath();
+      ctx.moveTo(34, -40);
+      ctx.lineTo(34, 40);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function roundRect(ctx, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + width, y, x + width, y + height, r);
+      ctx.arcTo(x + width, y + height, x, y + height, r);
+      ctx.arcTo(x, y + height, x, y, r);
+      ctx.arcTo(x, y, x + width, y, r);
+      ctx.closePath();
+    }
+
+    function dataUrlToBytes(dataUrl) {
+      const base64 = dataUrl.split(",")[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function buildPdfWithJpeg(jpegBytes, imageWidth, imageHeight) {
+      const encoder = new TextEncoder();
+      const pageWidth = 360;
+      const pageHeight = Math.min(14000, (imageHeight / imageWidth) * pageWidth);
+      const content = `q ${pageWidth.toFixed(2)} 0 0 ${pageHeight.toFixed(2)} 0 0 cm /Im0 Do Q`;
+      const chunks = [];
+      const offsets = [];
+      let offset = 0;
+
+      function push(part) {
+        const bytes = typeof part === "string" ? encoder.encode(part) : part;
+        chunks.push(bytes);
+        offset += bytes.length;
+      }
+
+      function object(id, parts) {
+        offsets[id] = offset;
+        push(`${id} 0 obj\n`);
+        parts.forEach(push);
+        push("\nendobj\n");
+      }
+
+      push("%PDF-1.3\n%\u00ff\u00ff\u00ff\u00ff\n");
+      object(1, ["<< /Type /Catalog /Pages 2 0 R >>"]);
+      object(2, ["<< /Type /Pages /Kids [3 0 R] /Count 1 >>"]);
+      object(3, [`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth.toFixed(2)} ${pageHeight.toFixed(2)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`]);
+      object(4, [
+        `<< /Type /XObject /Subtype /Image /Width ${imageWidth} /Height ${imageHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>\nstream\n`,
+        jpegBytes,
+        "\nendstream"
+      ]);
+      object(5, [`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`]);
+
+      const xref = offset;
+      push(`xref\n0 6\n0000000000 65535 f \n`);
+      for (let i = 1; i <= 5; i += 1) {
+        push(`${String(offsets[i]).padStart(10, "0")} 00000 n \n`);
+      }
+      push(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+
+      const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const result = new Uint8Array(total);
+      let cursor = 0;
+      chunks.forEach((chunk) => {
+        result.set(chunk, cursor);
+        cursor += chunk.length;
+      });
+      return result;
+    }
+
+    loadSongs().then(() => {
+      state.activeSongId = state.songs[0]?.id || "";
+      renderLibrary();
+    });
+
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
