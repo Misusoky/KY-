@@ -4,13 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>歌词记事本</title>
-  <meta name="theme-color" content="#111217">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="歌词记事本">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="./icon.svg">
   <style>
     :root {
       color-scheme: dark;
@@ -463,18 +456,72 @@
       height: 0;
     }
 
-    .lyric-line {
-      width: min(100%, 620px);
-      margin: 0 auto 24px;
-      transition: transform 180ms ease, opacity 180ms ease;
-    }
+	    .lyric-line {
+	      width: min(100%, 620px);
+	      margin: 0 auto 24px;
+	      display: grid;
+	      grid-template-columns: 38px minmax(0, 1fr) 38px;
+	      align-items: start;
+	      gap: 6px;
+	      transition: transform 180ms ease, opacity 180ms ease;
+	    }
 
-    .lyric-line textarea {
-      display: block;
-      width: 100%;
-      min-height: 40px;
-      resize: none;
-      overflow: hidden;
+	    .drag-handle,
+	    .line-spacer {
+	      width: 34px;
+	      height: 40px;
+	      flex: 0 0 auto;
+	    }
+
+	    .drag-handle {
+	      display: grid;
+	      place-items: center;
+	      border-radius: 8px;
+	      background: transparent;
+	      color: rgba(255, 255, 255, 0.28);
+	      cursor: grab;
+	      touch-action: none;
+	      transition: background 160ms ease, color 160ms ease;
+	    }
+
+	    .drag-handle:hover,
+	    .drag-handle:focus-visible,
+	    .lyric-line.dragging .drag-handle {
+	      background: rgba(255, 255, 255, 0.07);
+	      color: rgba(255, 255, 255, 0.8);
+	      outline: none;
+	    }
+
+	    .drag-handle:active,
+	    .lyric-line.dragging .drag-handle {
+	      cursor: grabbing;
+	    }
+
+	    .drag-handle .icon {
+	      width: 18px;
+	      height: 18px;
+	    }
+
+	    .line-spacer {
+	      pointer-events: none;
+	    }
+
+	    .lyric-line.dragging {
+	      opacity: 0.82;
+	      transform: scale(1.01);
+	    }
+
+	    body.is-lyric-dragging {
+	      user-select: none;
+	    }
+
+	    .lyric-line textarea {
+	      display: block;
+	      width: 100%;
+	      min-width: 0;
+	      min-height: 40px;
+	      resize: none;
+	      overflow: hidden;
       border: 0;
       outline: 0;
       background: transparent;
@@ -568,43 +615,27 @@
       font-weight: 650;
     }
 
-    .transport {
-      display: grid;
-      grid-template-columns: 1fr 1fr 72px 1fr 1fr;
+	    .transport {
+	      display: grid;
+	      grid-template-columns: 1fr 1fr 72px 1fr 1fr;
       align-items: center;
       justify-items: center;
       gap: 10px;
       max-width: 430px;
       margin: 0 auto;
-      color: rgba(255, 255, 255, 0.72);
-    }
+	      color: rgba(255, 255, 255, 0.72);
+	    }
 
-    .play-button {
-      width: 64px;
-      height: 64px;
+	    .play-button {
+	      width: 64px;
+	      height: 64px;
       border-radius: 50%;
       display: grid;
       place-items: center;
       background: rgba(255, 255, 255, 0.86);
       color: #111217;
-      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
-    }
-
-    .bottom-actions {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      max-width: 430px;
-      margin: 16px auto 0;
-      color: rgba(255, 255, 255, 0.48);
-    }
-
-    .bottom-actions .icon-button {
-      width: 100%;
-      height: 38px;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.045);
-    }
+	      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+	    }
 
     .export-sheet {
       position: fixed;
@@ -721,10 +752,20 @@
         font-size: 1.15rem;
       }
 
-      .lyric-line.active textarea {
-        font-size: 1.38rem;
-      }
-    }
+	      .lyric-line.active textarea {
+	        font-size: 1.38rem;
+	      }
+
+	      .lyric-line {
+	        grid-template-columns: 32px minmax(0, 1fr) 32px;
+	        gap: 4px;
+	      }
+
+	      .drag-handle,
+	      .line-spacer {
+	        width: 30px;
+	      }
+	    }
   </style>
 </head>
 <body>
@@ -733,9 +774,10 @@
 
   <script>
     const DB_NAME = "local-lyric-notebook";
-    const DB_VERSION = 1;
-    const STORE_NAME = "songs";
-    const FALLBACK_KEY = "local-lyric-notebook-fallback";
+	    const DB_VERSION = 1;
+	    const STORE_NAME = "songs";
+	    const FALLBACK_KEY = "local-lyric-notebook-fallback";
+	    const STARTER_LINES = ["把刚出现的旋律写下来", "让副歌先亮一下", "下一句留给深夜"];
 
     const icons = {
       add: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -754,12 +796,13 @@
       loop: '<svg class="icon" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a5 5 0 0 1 5-5h13"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a5 5 0 0 1-5 5H3"/></svg>',
       prev: '<svg class="icon" viewBox="0 0 24 24"><path d="M19 20 9 12l10-8v16Z"/><path d="M5 19V5"/></svg>',
       next: '<svg class="icon" viewBox="0 0 24 24"><path d="m5 4 10 8-10 8V4Z"/><path d="M19 5v14"/></svg>',
-      play: '<svg class="icon" viewBox="0 0 24 24"><path d="m8 5 13 7-13 7V5Z"/></svg>',
-      list: '<svg class="icon" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>',
-      mic: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>',
-      heart: '<svg class="icon" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>',
-      info: '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
-    };
+	      play: '<svg class="icon" viewBox="0 0 24 24"><path d="m8 5 13 7-13 7V5Z"/></svg>',
+	      list: '<svg class="icon" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+	      mic: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>',
+	      heart: '<svg class="icon" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>',
+	      info: '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+	      grip: '<svg class="icon" viewBox="0 0 24 24"><path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"/></svg>'
+	    };
 
     const app = document.querySelector("#app");
     const toastNode = document.querySelector("#toast");
@@ -769,13 +812,39 @@
       view: "library",
       storage: "indexedDB",
       search: "",
-      saveTimer: 0,
-      toastTimer: 0,
-      focusLine: null,
-      exporting: false
-    };
+      searchFrame: 0,
+	      saveTimer: 0,
+	      toastTimer: 0,
+	      focusLine: null,
+	      dragLine: null,
+	      exporting: false
+	    };
 
     let dbPromise = null;
+    const songMetaCache = new WeakMap();
+
+    function songMeta(song) {
+      const cached = songMetaCache.get(song);
+      if (cached) return cached;
+      const lines = Array.isArray(song.lines) ? song.lines : [];
+      const meta = {
+        searchText: [song.title, song.artist, ...lines].map((value) => String(value ?? "")).join(" ").toLowerCase(),
+        lineCount: lines.reduce((count, line) => count + (String(line).trim() ? 1 : 0), 0),
+        snippet: lines.find((line) => String(line).trim()) || "还没有写下歌词"
+      };
+      songMetaCache.set(song, meta);
+      return meta;
+    }
+
+	    function markSongMetaDirty(song) {
+	      if (song) songMetaCache.delete(song);
+	    }
+
+	    function isStarterLyrics(song) {
+	      return Array.isArray(song.lines)
+	        && song.lines.length === STARTER_LINES.length
+	        && song.lines.every((line, index) => line === STARTER_LINES[index]);
+	    }
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -795,11 +864,11 @@
       const now = Date.now();
       return {
         id: uid(),
-        title,
-        artist: "本地创作",
-        cover: "",
-        lines: ["把刚出现的旋律写下来", "让副歌先亮一下", "下一句留给深夜"],
-        activeIndex: 1,
+	        title,
+	        artist: "本地创作",
+	        cover: "",
+	        lines: [...STARTER_LINES],
+	        activeIndex: 1,
         createdAt: now,
         updatedAt: now
       };
@@ -895,12 +964,11 @@
     }
 
     function nonEmptyLines(song) {
-      return song.lines.filter((line) => String(line).trim()).length;
+      return songMeta(song).lineCount;
     }
 
     function firstSnippet(song) {
-      const text = song.lines.find((line) => String(line).trim());
-      return text || "还没有写下歌词";
+      return songMeta(song).snippet;
     }
 
     function formatDate(timestamp) {
@@ -915,13 +983,54 @@
       return `<div class="${className} default-cover" aria-label="默认封面"></div>`;
     }
 
-    function renderLibrary() {
+    function filteredSongs() {
       const query = state.search.trim().toLowerCase();
-      const songs = state.songs.filter((song) => {
-        if (!query) return true;
-        return `${song.title} ${song.artist} ${song.lines.join(" ")}`.toLowerCase().includes(query);
-      });
+      if (!query) return state.songs;
+      return state.songs.filter((song) => songMeta(song).searchText.includes(query));
+    }
 
+    function songCardHtml(song) {
+      return `
+        <article class="song-card" tabindex="0" data-song-id="${song.id}">
+          ${songCoverHtml(song)}
+          <div class="song-info">
+            <h2 class="song-name">${escapeHtml(song.title || "未命名作品")}</h2>
+            <div class="song-meta">
+              <span>${escapeHtml(song.artist || "本地创作")}</span>
+              <span>${nonEmptyLines(song)} 行歌词</span>
+              <span>${formatDate(song.updatedAt)}</span>
+            </div>
+            <p class="song-snippet">${escapeHtml(firstSnippet(song))}</p>
+          </div>
+          <button class="icon-button" data-action="delete-song" data-id="${song.id}" title="删除作品" aria-label="删除作品">${icons.trash}</button>
+        </article>
+      `;
+    }
+
+    function librarySongListHtml(songs) {
+      return songs.length ? songs.map(songCardHtml).join("") : `
+        <div class="empty-state">
+          <p>没有找到匹配的作品。</p>
+          <button class="primary-button" data-action="add-song">${icons.add}<span>新建作品</span></button>
+        </div>
+      `;
+    }
+
+    function renderSongList() {
+      const list = document.querySelector("#songList");
+      if (!list) return;
+      list.innerHTML = librarySongListHtml(filteredSongs());
+    }
+
+    function scheduleLibrarySearchRender() {
+      if (state.searchFrame) cancelAnimationFrame(state.searchFrame);
+      state.searchFrame = requestAnimationFrame(() => {
+        state.searchFrame = 0;
+        renderSongList();
+      });
+    }
+
+    function renderLibrary() {
       app.innerHTML = `
         <main class="library">
           <header class="library-header">
@@ -938,34 +1047,11 @@
               <input id="searchInput" type="search" value="${escapeHtml(state.search)}" placeholder="搜索歌名、作者或歌词">
             </label>
           </div>
-          <section class="song-list" aria-label="作品列表">
-            ${songs.length ? songs.map((song) => `
-              <article class="song-card" tabindex="0" data-song-id="${song.id}">
-                ${songCoverHtml(song)}
-                <div class="song-info">
-                  <h2 class="song-name">${escapeHtml(song.title || "未命名作品")}</h2>
-                  <div class="song-meta">
-                    <span>${escapeHtml(song.artist || "本地创作")}</span>
-                    <span>${nonEmptyLines(song)} 行歌词</span>
-                    <span>${formatDate(song.updatedAt)}</span>
-                  </div>
-                  <p class="song-snippet">${escapeHtml(firstSnippet(song))}</p>
-                </div>
-                <button class="icon-button" data-action="delete-song" data-id="${song.id}" title="删除作品" aria-label="删除作品">${icons.trash}</button>
-              </article>
-            `).join("") : `
-              <div class="empty-state">
-                <p>没有找到匹配的作品。</p>
-                <button class="primary-button" data-action="add-song">${icons.add}<span>新建作品</span></button>
-              </div>
-            `}
+          <section id="songList" class="song-list" aria-label="作品列表">
+            ${librarySongListHtml(filteredSongs())}
           </section>
         </main>
       `;
-      const searchInput = document.querySelector("#searchInput");
-      if (searchInput) {
-        searchInput.selectionStart = searchInput.selectionEnd = searchInput.value.length;
-      }
     }
 
     function renderEditor() {
@@ -980,10 +1066,11 @@
       song.activeIndex = activeIndex;
       const progress = song.lines.length > 1 ? Math.round((activeIndex / (song.lines.length - 1)) * 100) : 42;
 
-      app.innerHTML = `
-        <main class="editor">
-          <input id="coverInput" class="hidden" type="file" accept="image/*">
-          <header class="editor-topbar">
+	      app.innerHTML = `
+	        <main class="editor">
+	          <input id="coverInput" class="hidden" type="file" accept="image/*">
+	          <input id="lyricsInput" class="hidden" type="file" accept=".txt,.lrc,.md,text/plain">
+	          <header class="editor-topbar">
             <button class="icon-button" data-action="back-library" title="返回作品列表" aria-label="返回作品列表">${icons.chevronDown}</button>
             <div class="title-stack">
               <input class="title-input" data-field="title" value="${escapeHtml(song.title)}" placeholder="歌名">
@@ -1000,23 +1087,26 @@
           </div>
           <div id="saveState" class="save-state">已自动保存</div>
 
-          <div class="lyric-actions" aria-label="歌词行工具">
-            <button class="icon-button" data-action="add-line" title="在当前行后添加" aria-label="在当前行后添加">${icons.add}</button>
-            <button class="icon-button" data-action="move-line-up" title="当前行上移" aria-label="当前行上移">${icons.up}</button>
-            <button class="icon-button" data-action="move-line-down" title="当前行下移" aria-label="当前行下移">${icons.down}</button>
-            <button class="icon-button" data-action="delete-line" title="删除当前行" aria-label="删除当前行">${icons.trash}</button>
+	          <div class="lyric-actions" aria-label="歌词行工具">
+	            <button class="icon-button" data-action="import-lyrics" title="导入歌词文件" aria-label="导入歌词文件">${icons.upload}</button>
+	            <button class="icon-button" data-action="add-line" title="在当前行后添加" aria-label="在当前行后添加">${icons.add}</button>
+	            <button class="icon-button" data-action="move-line-up" title="当前行上移" aria-label="当前行上移">${icons.up}</button>
+	            <button class="icon-button" data-action="move-line-down" title="当前行下移" aria-label="当前行下移">${icons.down}</button>
+	            <button class="icon-button" data-action="delete-line" title="删除当前行" aria-label="删除当前行">${icons.trash}</button>
           </div>
 
           <section id="lyricsScroll" class="lyrics-scroll" aria-label="歌词编辑区">
             ${song.lines.map((line, index) => {
               const distance = Math.abs(index - activeIndex);
-              const tone = index === activeIndex ? "active" : distance === 1 ? "near" : "";
-              return `
-                <div class="lyric-line ${tone}" data-line-wrap="${index}">
-                  <textarea rows="1" data-line-index="${index}" placeholder="写下一句歌词">${escapeHtml(line)}</textarea>
-                </div>
-              `;
-            }).join("")}
+	              const tone = index === activeIndex ? "active" : distance === 1 ? "near" : "";
+	              return `
+	                <div class="lyric-line ${tone}" data-line-wrap="${index}">
+	                  <button class="drag-handle" data-drag-handle data-line-index="${index}" title="拖拽排序" aria-label="拖拽排序第 ${index + 1} 行">${icons.grip}</button>
+	                  <textarea rows="1" data-line-index="${index}" placeholder="写下一句歌词">${escapeHtml(line)}</textarea>
+	                  <span class="line-spacer" aria-hidden="true"></span>
+	                </div>
+	              `;
+	            }).join("")}
           </section>
 
           <footer class="player">
@@ -1030,16 +1120,10 @@
               <button class="icon-button" tabindex="-1">${icons.loop}</button>
               <button class="icon-button" tabindex="-1">${icons.prev}</button>
               <button class="play-button" tabindex="-1">${icons.play}</button>
-              <button class="icon-button" tabindex="-1">${icons.next}</button>
-              <button class="icon-button" tabindex="-1">${icons.list}</button>
-            </div>
-            <div class="bottom-actions">
-              <button class="icon-button" data-action="upload-cover" title="封面" aria-label="封面">${icons.image}</button>
-              <button class="icon-button" data-action="toggle-export" title="导出" aria-label="导出">${icons.export}</button>
-              <button class="icon-button" title="歌词信息" aria-label="歌词信息">${icons.info}</button>
-              <button class="icon-button" data-action="back-library" title="作品列表" aria-label="作品列表">${icons.dots}</button>
-            </div>
-          </footer>
+	              <button class="icon-button" tabindex="-1">${icons.next}</button>
+	              <button class="icon-button" tabindex="-1">${icons.list}</button>
+	            </div>
+	          </footer>
 
           <aside id="exportSheet" class="export-sheet" aria-label="导出面板">
             <div class="export-head">
@@ -1125,6 +1209,7 @@
       song.lines.splice(insertAt, 0, "");
       song.activeIndex = insertAt;
       state.focusLine = insertAt;
+      markSongMetaDirty(song);
       scheduleSave(song);
       renderEditor();
     }
@@ -1140,23 +1225,95 @@
         song.activeIndex = Math.min(song.activeIndex, song.lines.length - 1);
       }
       state.focusLine = song.activeIndex;
+      markSongMetaDirty(song);
       scheduleSave(song);
       renderEditor();
     }
 
-    function moveActiveLine(direction) {
-      const song = currentSong();
-      if (!song) return;
-      const from = song.activeIndex;
-      const to = from + direction;
-      if (to < 0 || to >= song.lines.length) return;
-      const [line] = song.lines.splice(from, 1);
-      song.lines.splice(to, 0, line);
-      song.activeIndex = to;
-      state.focusLine = to;
-      scheduleSave(song);
-      renderEditor();
-    }
+	    function moveActiveLine(direction) {
+	      const song = currentSong();
+	      if (!song) return;
+	      const from = song.activeIndex;
+	      const to = from + direction;
+	      if (to < 0 || to >= song.lines.length) return;
+	      reorderLyricLine(from, to);
+	      state.focusLine = to;
+	      scheduleSave(song);
+	      renderEditor();
+	    }
+
+	    function reorderLyricLine(from, to) {
+	      const song = currentSong();
+	      if (!song || from === to || from < 0 || to < 0 || from >= song.lines.length || to >= song.lines.length) {
+	        return false;
+	      }
+	      const [line] = song.lines.splice(from, 1);
+	      song.lines.splice(to, 0, line);
+	      song.activeIndex = to;
+	      markSongMetaDirty(song);
+	      return true;
+	    }
+
+	    function syncLyricLineDom() {
+	      const song = currentSong();
+	      if (!song) return;
+	      document.querySelectorAll(".lyric-line").forEach((node, index) => {
+	        const distance = Math.abs(index - song.activeIndex);
+	        const textarea = node.querySelector("textarea[data-line-index]");
+	        const handle = node.querySelector("[data-drag-handle]");
+	        node.dataset.lineWrap = String(index);
+	        node.classList.toggle("active", index === song.activeIndex);
+	        node.classList.toggle("near", index !== song.activeIndex && distance === 1);
+	        if (textarea) textarea.dataset.lineIndex = String(index);
+	        if (handle) {
+	          handle.dataset.lineIndex = String(index);
+	          handle.setAttribute("aria-label", `拖拽排序第 ${index + 1} 行`);
+	        }
+	      });
+	      const progress = document.querySelector(".progress");
+	      if (progress) {
+	        const width = song.lines.length > 1 ? Math.round((song.activeIndex / (song.lines.length - 1)) * 100) : 42;
+	        progress.style.setProperty("--progress-width", `${width}%`);
+	      }
+	      const timeline = document.querySelectorAll(".timeline > span");
+	      if (timeline[0]) timeline[0].textContent = String(song.activeIndex + 1).padStart(2, "0");
+	      if (timeline[1]) timeline[1].textContent = String(song.lines.length).padStart(2, "0");
+	    }
+
+	    function lineAtPoint(x, y) {
+	      const direct = document.elementFromPoint(x, y)?.closest(".lyric-line");
+	      if (direct) return direct;
+	      return [...document.querySelectorAll(".lyric-line")].reduce((nearest, node) => {
+	        const rect = node.getBoundingClientRect();
+	        const distance = Math.abs(y - (rect.top + rect.height / 2));
+	        if (!nearest || distance < nearest.distance) return { node, distance };
+	        return nearest;
+	      }, null)?.node;
+	    }
+
+	    function moveDraggedLine(from, to) {
+	      const scroll = document.querySelector("#lyricsScroll");
+	      const nodes = [...(scroll?.querySelectorAll(".lyric-line") || [])];
+	      const dragging = nodes[from];
+	      const target = nodes[to];
+	      if (!dragging || !target) return;
+	      if (to > from) target.after(dragging);
+	      else target.before(dragging);
+	    }
+
+	    function finishLyricDrag(event) {
+	      const drag = state.dragLine;
+	      if (!drag || drag.pointerId !== event.pointerId) return;
+	      document.body.classList.remove("is-lyric-dragging");
+	      document.querySelector(".lyric-line.dragging")?.classList.remove("dragging");
+	      state.dragLine = null;
+	      const song = currentSong();
+	      if (!song) return;
+	      if (drag.moved) {
+	        scheduleSave(song);
+	        showToast("歌词顺序已更新");
+	      }
+	    }
 
     async function addSong() {
       const song = makeSong();
@@ -1183,9 +1340,9 @@
       renderLibrary();
     }
 
-    async function handleCoverFile(file) {
-      if (!file || !file.type.startsWith("image/")) {
-        showToast("请选择图片文件");
+	    async function handleCoverFile(file) {
+	      if (!file || !file.type.startsWith("image/")) {
+	        showToast("请选择图片文件");
         return;
       }
       const song = currentSong();
@@ -1196,11 +1353,103 @@
         renderEditor();
         showToast("封面已保存到本地");
       } catch (error) {
-        showToast("封面读取失败");
-      }
-    }
+	        showToast("封面读取失败");
+	      }
+	    }
 
-    function readCompressedImage(file, size, quality) {
+	    async function handleLyricsFile(file) {
+	      if (!file) return;
+	      try {
+	        const text = await file.text();
+	        importLyricsText(text, file.name);
+	      } catch (error) {
+	        showToast("歌词读取失败");
+	      }
+	    }
+
+	    function normalizeImportedText(text) {
+	      return String(text ?? "")
+	        .replace(/^\uFEFF/, "")
+	        .replace(/\r\n?/g, "\n")
+	        .replace(/[\u2028\u2029]/g, "\n")
+	        .replace(/([^\]\n])(\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\])/g, "$1\n$2");
+	    }
+
+	    function compactImportedLines(lines) {
+	      const result = lines.map((line) => String(line ?? "").replace(/\s+$/g, ""));
+	      while (result.length && !result[0].trim()) result.shift();
+	      while (result.length && !result[result.length - 1].trim()) result.pop();
+	      return result.reduce((clean, line) => {
+	        if (!line.trim() && !clean[clean.length - 1]?.trim()) return clean;
+	        clean.push(line);
+	        return clean;
+	      }, []);
+	    }
+
+	    function parseImportedLyrics(text) {
+	      const meta = {};
+	      const lines = [];
+	      normalizeImportedText(text).split("\n").forEach((rawLine) => {
+	        let line = rawLine.replace(/\t/g, " ").trimEnd();
+	        const metaMatch = line.trim().match(/^\[(ti|ar|al|by):([^\]]*)\]$/i);
+	        if (metaMatch) {
+	          meta[metaMatch[1].toLowerCase()] = metaMatch[2].trim();
+	          return;
+	        }
+	        if (/^\[(offset|length|re):[^\]]*\]$/i.test(line.trim())) return;
+	        line = line.replace(/^(?:\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]\s*)+/, "");
+	        lines.push(line.trim());
+	      });
+	      return {
+	        lines: compactImportedLines(lines),
+	        title: meta.ti || "",
+	        artist: meta.ar || ""
+	      };
+	    }
+
+	    function importLyricsText(text, sourceName = "") {
+	      const song = currentSong();
+	      if (!song) return;
+	      const parsed = parseImportedLyrics(text);
+	      if (!parsed.lines.some((line) => line.trim())) {
+	        showToast("没有识别到歌词内容");
+	        return;
+	      }
+	      const hasExistingLyrics = song.lines.some((line) => String(line).trim()) && !isStarterLyrics(song);
+	      if (hasExistingLyrics && !confirm("导入后会替换当前歌词，继续吗？")) return;
+	      song.lines = parsed.lines;
+	      song.activeIndex = 0;
+	      if (parsed.title && (!song.title || song.title === "新的灵感")) song.title = parsed.title;
+	      if (parsed.artist && (!song.artist || song.artist === "本地创作")) song.artist = parsed.artist;
+	      if (!parsed.title && sourceName && (!song.title || song.title === "新的灵感")) {
+	        song.title = sourceName.replace(/\.[^.]+$/, "").slice(0, 48);
+	      }
+	      state.focusLine = 0;
+	      markSongMetaDirty(song);
+	      scheduleSave(song);
+	      renderEditor();
+	      showToast(`已导入 ${parsed.lines.length} 行歌词`);
+	    }
+
+	    function pasteLyricsAsLines(textarea, importedLines) {
+	      const song = currentSong();
+	      if (!song || importedLines.length < 2) return;
+	      const index = Number(textarea.dataset.lineIndex);
+	      const start = textarea.selectionStart ?? textarea.value.length;
+	      const end = textarea.selectionEnd ?? textarea.value.length;
+	      const replacement = importedLines.slice();
+	      replacement[0] = textarea.value.slice(0, start) + replacement[0];
+	      replacement[replacement.length - 1] = replacement[replacement.length - 1] + textarea.value.slice(end);
+	      song.lines.splice(index, 1, ...replacement);
+	      song.activeIndex = index + replacement.length - 1;
+	      state.focusLine = song.activeIndex;
+	      markSongMetaDirty(song);
+	      scheduleSave(song);
+	      renderEditor();
+	      showToast(`已拆成 ${replacement.length} 行`);
+	    }
+
+	    function readCompressedImage(file, size, quality) {
       return new Promise((resolve, reject) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
@@ -1238,11 +1487,14 @@
           state.view = "library";
           renderLibrary();
         }
-        if (action === "upload-cover") {
-          document.querySelector("#coverInput")?.click();
-        }
-        if (action === "toggle-export") {
-          document.querySelector("#exportSheet")?.classList.toggle("open");
+	        if (action === "upload-cover") {
+	          document.querySelector("#coverInput")?.click();
+	        }
+	        if (action === "import-lyrics") {
+	          document.querySelector("#lyricsInput")?.click();
+	        }
+	        if (action === "toggle-export") {
+	          document.querySelector("#exportSheet")?.classList.toggle("open");
         }
         if (action === "add-line") addLineAfter(currentSong()?.activeIndex || 0);
         if (action === "delete-line") deleteActiveLine();
@@ -1260,8 +1512,8 @@
       }
     });
 
-    app.addEventListener("keydown", (event) => {
-      const card = event.target.closest("[data-song-id]");
+	    app.addEventListener("keydown", (event) => {
+	      const card = event.target.closest("[data-song-id]");
       if (card && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
         state.activeSongId = card.dataset.songId;
@@ -1283,11 +1535,62 @@
         event.preventDefault();
         currentSong().activeIndex = index;
         deleteActiveLine();
-      }
-    });
+	      }
+	    });
 
-    app.addEventListener("focusin", (event) => {
-      const textarea = event.target.closest("textarea[data-line-index]");
+	    app.addEventListener("paste", (event) => {
+	      const textarea = event.target.closest("textarea[data-line-index]");
+	      if (!textarea) return;
+	      const text = event.clipboardData?.getData("text/plain") || "";
+	      if (!text) return;
+	      const hasLineBreaks = /[\r\n\u2028\u2029]/.test(text) || /\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/.test(text);
+	      if (!hasLineBreaks) return;
+	      const parsed = parseImportedLyrics(text);
+	      if (parsed.lines.length < 2) return;
+	      event.preventDefault();
+	      pasteLyricsAsLines(textarea, parsed.lines);
+	    });
+
+	    app.addEventListener("pointerdown", (event) => {
+	      const handle = event.target.closest("[data-drag-handle]");
+	      if (!handle) return;
+	      const song = currentSong();
+	      if (!song) return;
+	      const index = Number(handle.dataset.lineIndex);
+	      if (!Number.isInteger(index)) return;
+	      event.preventDefault();
+	      setActiveLine(index, false);
+	      state.dragLine = {
+	        pointerId: event.pointerId,
+	        currentIndex: index,
+	        moved: false
+	      };
+	      handle.setPointerCapture?.(event.pointerId);
+	      handle.closest(".lyric-line")?.classList.add("dragging");
+	      document.body.classList.add("is-lyric-dragging");
+	    });
+
+	    app.addEventListener("pointermove", (event) => {
+	      const drag = state.dragLine;
+	      if (!drag || drag.pointerId !== event.pointerId) return;
+	      event.preventDefault();
+	      const target = lineAtPoint(event.clientX, event.clientY);
+	      if (!target) return;
+	      const to = Number(target.dataset.lineWrap);
+	      const from = drag.currentIndex;
+	      if (!Number.isInteger(to) || to === from) return;
+	      if (!reorderLyricLine(from, to)) return;
+	      moveDraggedLine(from, to);
+	      drag.currentIndex = to;
+	      drag.moved = true;
+	      syncLyricLineDom();
+	    });
+
+	    app.addEventListener("pointerup", finishLyricDrag);
+	    app.addEventListener("pointercancel", finishLyricDrag);
+
+	    app.addEventListener("focusin", (event) => {
+	      const textarea = event.target.closest("textarea[data-line-index]");
       if (textarea) {
         setActiveLine(Number(textarea.dataset.lineIndex), true);
       }
@@ -1297,7 +1600,7 @@
       const search = event.target.closest("#searchInput");
       if (search) {
         state.search = search.value;
-        renderLibrary();
+        scheduleLibrarySearchRender();
         return;
       }
 
@@ -1306,6 +1609,7 @@
         const song = currentSong();
         if (!song) return;
         song[field.dataset.field] = field.value;
+        markSongMetaDirty(song);
         scheduleSave(song);
         return;
       }
@@ -1315,17 +1619,23 @@
         const song = currentSong();
         const index = Number(textarea.dataset.lineIndex);
         song.lines[index] = textarea.value;
+        markSongMetaDirty(song);
         fitTextarea(textarea);
         setActiveLine(index, false);
         scheduleSave(song);
       }
     });
 
-    app.addEventListener("change", (event) => {
-      if (event.target.matches("#coverInput")) {
-        handleCoverFile(event.target.files[0]);
-      }
-    });
+	    app.addEventListener("change", async (event) => {
+	      if (event.target.matches("#coverInput")) {
+	        await handleCoverFile(event.target.files[0]);
+	        event.target.value = "";
+	      }
+	      if (event.target.matches("#lyricsInput")) {
+	        await handleLyricsFile(event.target.files[0]);
+	        event.target.value = "";
+	      }
+	    });
 
     function sanitizeFileName(name) {
       return (name || "歌词")
@@ -1706,12 +2016,6 @@
       state.activeSongId = state.songs[0]?.id || "";
       renderLibrary();
     });
-
-    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(() => {});
-      });
-    }
   </script>
 </body>
 </html>
