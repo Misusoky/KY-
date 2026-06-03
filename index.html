@@ -825,6 +825,8 @@
 	    const LYRIC_FONT_STEP = 1;
 	    const LYRIC_FONT_DEFAULT = 20;
 	    const ACTIVE_LYRIC_FONT_RATIO = 1.22;
+	    const EXPORT_CANVAS_MAX_HEIGHT = 14000;
+	    const EXPORT_CANVAS_MIN_SCALE = 0.35;
 
     const icons = {
       add: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -1158,7 +1160,7 @@
 	      app.innerHTML = `
 	        <main class="editor" style="${lyricFontStyle(song)}">
 	          <input id="coverInput" class="hidden" type="file" accept="image/*">
-	          <input id="lyricsInput" class="hidden" type="file" accept=".txt,.lrc,.md,text/plain">
+	          <input id="lyricsInput" class="hidden" type="file" accept="text/*,.txt,.lrc,.md,application/octet-stream">
 	          <header class="editor-topbar">
             <button class="icon-button" data-action="back-library" title="返回作品列表" aria-label="返回作品列表">${icons.chevronDown}</button>
             <div class="title-stack">
@@ -1482,11 +1484,56 @@
 	    async function handleLyricsFile(file) {
 	      if (!file) return;
 	      try {
-	        const text = await file.text();
+	        const text = await readTextFile(file);
 	        importLyricsText(text, file.name);
 	      } catch (error) {
 	        showToast("歌词读取失败");
 	      }
+	    }
+
+	    async function readTextFile(file) {
+	      const buffer = await readFileBuffer(file);
+	      return decodeTextBuffer(buffer);
+	    }
+
+	    function readFileBuffer(file) {
+	      if (file.arrayBuffer) return file.arrayBuffer();
+	      return new Promise((resolve, reject) => {
+	        const reader = new FileReader();
+	        reader.onload = () => resolve(reader.result);
+	        reader.onerror = () => reject(reader.error || new Error("file read failed"));
+	        reader.readAsArrayBuffer(file);
+	      });
+	    }
+
+	    function decodeTextBuffer(buffer) {
+	      const bytes = new Uint8Array(buffer);
+	      if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+	        return decodeBytes(bytes.slice(3), "utf-8");
+	      }
+	      if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+	        return decodeBytes(bytes.slice(2), "utf-16le");
+	      }
+	      if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+	        return decodeBytes(bytes.slice(2), "utf-16be");
+	      }
+
+	      const utf8 = decodeBytes(bytes, "utf-8");
+	      const gb18030 = decodeBytes(bytes, "gb18030");
+	      if (!gb18030) return utf8;
+	      return replacementScore(gb18030) < replacementScore(utf8) ? gb18030 : utf8;
+	    }
+
+	    function decodeBytes(bytes, encoding) {
+	      try {
+	        return new TextDecoder(encoding).decode(bytes);
+	      } catch (error) {
+	        return "";
+	      }
+	    }
+
+	    function replacementScore(text) {
+	      return (text.match(/\uFFFD/g) || []).length;
 	    }
 
 	    function normalizeImportedText(text) {
@@ -1610,10 +1657,14 @@
           renderLibrary();
         }
 	        if (action === "upload-cover") {
-	          document.querySelector("#coverInput")?.click();
+	          const input = document.querySelector("#coverInput");
+	          if (input) input.value = "";
+	          input?.click();
 	        }
 	        if (action === "import-lyrics") {
-	          document.querySelector("#lyricsInput")?.click();
+	          const input = document.querySelector("#lyricsInput");
+	          if (input) input.value = "";
+	          input?.click();
 	        }
 	        if (action === "toggle-export") {
 	          document.querySelector("#exportSheet")?.classList.toggle("open");
@@ -1783,32 +1834,79 @@
         const filename = sanitizeFileName(song.title);
         if (type === "png") {
           const blob = await canvasToBlob(canvas, "image/png");
-          downloadBlob(blob, `${filename}-歌词长图.png`);
+          await deliverBlob(blob, `${filename}-歌词长图.png`);
         }
         if (type === "word") {
           const dataUrl = canvas.toDataURL("image/png");
           const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(song.title)}</title><style>@page{margin:0;}body{margin:0;background:#111217;}img{display:block;width:100%;height:auto;}</style></head><body><img src="${dataUrl}" alt="${escapeHtml(song.title)}"></body></html>`;
           const blob = new Blob([html], { type: "application/msword;charset=utf-8" });
-          downloadBlob(blob, `${filename}-歌词长图.doc`);
+          await deliverBlob(blob, `${filename}-歌词长图.doc`);
         }
         if (type === "pdf") {
           const jpegBytes = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92));
           const pdfBytes = buildPdfWithJpeg(jpegBytes, canvas.width, canvas.height);
           const blob = new Blob([pdfBytes], { type: "application/pdf" });
-          downloadBlob(blob, `${filename}-歌词长图.pdf`);
+          await deliverBlob(blob, `${filename}-歌词长图.pdf`);
         }
         showToast("导出完成");
       } catch (error) {
-        showToast("导出失败，请稍后重试");
+        showToast(error?.name === "AbortError" ? "已取消导出" : "导出失败，请稍后重试");
       } finally {
         state.exporting = false;
       }
     }
 
-    function canvasToBlob(canvas, type) {
-      return new Promise((resolve) => {
-        canvas.toBlob((blob) => resolve(blob), type);
+    function canvasToBlob(canvas, type, quality) {
+      if (!canvas.toBlob) {
+        return Promise.resolve(dataUrlToBlob(canvas.toDataURL(type, quality)));
+      }
+      return new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("canvas blob failed"));
+        }, type, quality);
       });
+    }
+
+    function dataUrlToBlob(dataUrl) {
+      const [meta, base64] = dataUrl.split(",");
+      const mime = meta.match(/data:([^;]+)/)?.[1] || "application/octet-stream";
+      const binary = atob(base64 || "");
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new Blob([bytes], { type: mime });
+    }
+
+    async function deliverBlob(blob, filename) {
+      if (!blob || !blob.size) throw new Error("empty export");
+      const file = makeShareFile(blob, filename);
+      if (isAndroidDevice() && file && navigator.canShare?.({ files: [file] }) && navigator.share) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: filename,
+            text: "歌词记事本导出文件"
+          });
+          return;
+        } catch (error) {
+          if (error?.name === "AbortError") throw error;
+        }
+      }
+      downloadBlob(blob, filename);
+    }
+
+    function makeShareFile(blob, filename) {
+      try {
+        return new File([blob], filename, { type: blob.type || "application/octet-stream" });
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function isAndroidDevice() {
+      return /Android/i.test(navigator.userAgent || "");
     }
 
     function downloadBlob(blob, filename) {
@@ -1816,6 +1914,7 @@
       const link = document.createElement("a");
       link.href = url;
       link.download = filename;
+      link.rel = "noopener";
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1828,9 +1927,15 @@
       const side = 96;
       const lyricTop = 390;
       const bottomHeight = 390;
-      const prepared = prepareCanvasLines(song, width - side * 2);
+      const preparedBase = prepareCanvasLines(song, width - side * 2, 1);
+      const baseLyricHeight = preparedBase.reduce((sum, item) => sum + item.height + item.gap, 0);
+      const availableHeight = EXPORT_CANVAS_MAX_HEIGHT - lyricTop - bottomHeight;
+      const exportScale = baseLyricHeight > availableHeight
+        ? Math.max(EXPORT_CANVAS_MIN_SCALE, availableHeight / baseLyricHeight)
+        : 1;
+      const prepared = exportScale === 1 ? preparedBase : prepareCanvasLines(song, width - side * 2, exportScale);
       const lyricHeight = prepared.reduce((sum, item) => sum + item.height + item.gap, 0);
-      const height = Math.max(1680, lyricTop + lyricHeight + bottomHeight);
+      const height = Math.min(EXPORT_CANVAS_MAX_HEIGHT, Math.max(1680, lyricTop + lyricHeight + bottomHeight));
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -1843,15 +1948,15 @@
       return canvas;
     }
 
-    function prepareCanvasLines(song, maxWidth) {
+    function prepareCanvasLines(song, maxWidth, exportScale = 1) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       const active = Math.min(Math.max(song.activeIndex || 0, 0), song.lines.length - 1);
-      const scale = getLyricFontSize(song) / LYRIC_FONT_DEFAULT;
+      const scale = (getLyricFontSize(song) / LYRIC_FONT_DEFAULT) * exportScale;
       return song.lines.map((line, index) => {
         const isActive = index === active;
-        const fontSize = Math.round((isActive ? 54 : 42) * scale);
-        const lineHeight = Math.round((isActive ? 76 : 64) * scale);
+        const fontSize = Math.max(18, Math.round((isActive ? 54 : 42) * scale));
+        const lineHeight = Math.max(26, Math.round((isActive ? 76 : 64) * scale));
         ctx.font = `${isActive ? 800 : 700} ${fontSize}px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", Arial`;
         const wrapped = wrapText(ctx, String(line || " "), maxWidth);
         return {
@@ -1861,7 +1966,7 @@
           active: isActive,
           fontSize,
           lineHeight,
-          gap: Math.round(34 * scale),
+          gap: Math.max(8, Math.round(34 * scale)),
           height: wrapped.length * lineHeight
         };
       });

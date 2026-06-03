@@ -1,4 +1,4 @@
-const CACHE_NAME = "lyric-notebook-v2";
+const CACHE_NAME = "lyric-notebook-v3";
 const ASSETS = [
   "./",
   "./index.html",
